@@ -1,22 +1,59 @@
 
 package com.cmdComponent;
+
 import java.io.IOException;
 import java.io.Reader;
+import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import com.cmdComponent.Actor;
+import com.cmdComponent.ThreadMessages;
 
 /**
- */
-public class CmdCaller {
+* THis class is where all of the meat and potatoes of the program lies. 
+* It takes in an input string as part of the constructor, as well as an instance
+* of a class that implements the Actor interface, and then it builds a process based 
+* off of the input string. Although it does guard against many types of invalid commands
+* that would cause the program to crash, there is still a small 'bug' (I use the term loosely
+* since it's sort of advanced user error) where is you use the format of the string 
+* (name of process root-directory initialInput) and you give an error with one of the 
+* FIRST TWO parameters, there is a solid chance that the program will crash. I can't account
+* for every possiblity without some extreme measues, so, I'm leaving it in. 
+*
+*
+*@author William Daniels
+*
+*
+*/
+public class CmdCaller extends Thread {
+    private final String inputString;
+    private Actor middleMan;
 
+    public CmdCaller(final String inputString, Actor middleMan){
+        this.middleMan = middleMan;
+        this.inputString = inputString;
+    }
 
-    private String placeCmdCall(String key) throws IOException {        
+    public void run() {
         String output = "";
+        String fileSeperator = System.getProperty("file.separator");
+        
+        //This check is to try and filter out a lot of invalid types of processes.
+        //The main exception this does not catch is noted above.  
+        if (((inputString.substring(0, 3).contains(fileSeperator))) || (!(inputString.contains(" ")))){
+            String temp = (inputString.substring(0, inputString.length()));
+            File myFile = new File(temp);
+            if (!myFile.exists()){
+                middleMan.sendMsg(new ThreadMessages.ReturnCmdMessage("Invalid process path"));
+                return;
+            }
+        }
         try{
             Runtime runtime = Runtime.getRuntime();            
-            final Process process = runtime.exec(key);
+            final Process process = runtime.exec(inputString);
             
             //THIS line is the magic to avoid the deadlock condition entirely, although the whole method contributes. 
             //Without this, there is absolutely no hope in stopping it, as the buffer on Windows XP (and possible 7)
@@ -46,7 +83,7 @@ public class CmdCaller {
             t.printStackTrace();
         }
         finally{
-            return output;
+            middleMan.sendMsg(new ThreadMessages.ReturnCmdMessage(output));
         }
     }
 
